@@ -24,6 +24,10 @@
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction
+from qgis.core import QgsProject, Qgis
+from qgis.core import *
+# import qgis.utils
+
 # Initialize Qt resources from file resources.py
 from .resources import *
 
@@ -184,6 +188,11 @@ class IndexUpdater:
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
 
+        self.iface.mapCanvas().mapCanvasRefreshed.disconnect(self.reIndex)
+        self.iface.currentLayerChanged.disconnect(self.reIndex)
+        self.iface.mapCanvas().snappingUtils().setIndexingStrategy(
+            self.iface.mapCanvas().snappingUtils().IndexingStrategy.IndexHybrid)
+
         # remove this statement if dockwidget is to remain
         # for reuse if plugin is reopened
         # Commented next statement since it causes QGIS crashe
@@ -191,6 +200,7 @@ class IndexUpdater:
         # self.dockwidget = None
 
         self.pluginIsActive = False
+        self.iface.messageBar().pushMessage("Success", "Index Updater Stop", level=Qgis.Success, duration=2)
 
 
     def unload(self):
@@ -205,6 +215,16 @@ class IndexUpdater:
             self.iface.removeToolBarIcon(action)
         # remove the toolbar
         del self.toolbar
+
+    #--------------------------------------------------------------------------
+
+    def reIndex(self):
+        self.iface.mapCanvas().snappingUtils().setIndexingStrategy(
+            self.iface.mapCanvas().snappingUtils().IndexingStrategy.IndexExtent)
+        layer = self.iface.activeLayer()
+        if type(layer) == QgsVectorLayer:
+            if layer.isEditable():
+                layer.emitDataChanged()
 
     #--------------------------------------------------------------------------
 
@@ -230,3 +250,9 @@ class IndexUpdater:
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
+
+            self.iface.mapCanvas().snappingUtils().setIndexingStrategy(
+                self.iface.mapCanvas().snappingUtils().IndexingStrategy.IndexExtent)
+            self.iface.mapCanvas().mapCanvasRefreshed.connect(self.reIndex)
+            self.iface.currentLayerChanged.connect(self.reIndex)
+            self.iface.messageBar().pushMessage("Success", "Index Updater Start", level=Qgis.Success, duration=2)
